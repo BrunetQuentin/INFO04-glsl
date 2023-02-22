@@ -1,0 +1,4 @@
+- Plusieurs primitives (Rond, carré, etc...)
+- Combinaisons de primitives (U, I, S...)
+- Anti-aliasing
+- Mouvement (rotations, translations, scaling)
