@@ -1,3 +1,8 @@
+const float PI = 3.14;
+const int resolution = 16;
+vec2 period = vec2( 10.0, 10.0 );
+float power = 1.0;
+float size = 20.0;
 
 // function random
 vec2 random (vec2 st) {
@@ -33,18 +38,49 @@ float random21(float t) {
     return fract(sin(t) * 43758.5453123);
 }
 
+float turbulence( vec2 pos, in float size ) {
+
+    float value = 0.0, initialSize = size;
+    float x = pos.x;
+    float y = pos.y;
+    
+    for ( int i = 0; i<resolution; i++ ) {
+    	value += noiseFunction(vec2(x / size, y / size)) * size;
+        size /= 2.0;
+    }
+    
+    return( 128.0 * value / initialSize );
+}
+
+float marble( in vec2 p ) {
+
+  	float x = p.x;
+    float y = p.y;
+
+    float xy = x / iResolution.y * period.x;
+
+    xy += y * period.y / iResolution.x;
+    xy += power * turbulence( p, size ) / 256.0;
+
+    return sin( 256.0 * xy * PI );
+    
+}
+
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     // Normalized pixel coordinates (from 0 to 1)
     vec2 uv = fragCoord/iResolution.xy * 20.0;
 
     // number for all perlinNoise parameter progressively with cosinus
-    float persistence = cos(iTime * 0.1) * 0.5 + 0.5;
-    float lacunarity = cos(iTime * 0.1) * 0.5 + 0.5;
+    float persistence = cos(iTime * 0.1) * 0.5;
+    float lacunarity = cos(iTime * 0.1) * 0.5;
     
 
-    float noise = perlinNoise(uv, 1.0, 1.0, 10, lacunarity, persistence);
+    float noiseR = perlinNoise(uv, 2.0, 10.0, 10, lacunarity, persistence);
+    float noiseG = perlinNoise(uv, 2.0, 10.0, 10, lacunarity / 2.0, persistence / 2.0);
+    float noiseB = perlinNoise(uv, 2.0, 10.0, 10, lacunarity / 4.0, persistence / 4.0);
 
     // Output to screen
-    fragColor = vec4(vec3(noise),1.0);
+    fragColor = vec4(vec3(marble(uv), marble(uv), marble(uv)),1.0);
+
 }
