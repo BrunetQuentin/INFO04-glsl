@@ -31,6 +31,11 @@ float sdSphere( vec3 p, float s ) {
   return length(p)-s;
 }
 
+float sdPlane( vec3 p, vec3 n, float h ){
+  // n must be normalized
+  return dot(p,n) + h;
+}
+
 Surface add(in Surface s1, in Surface s2){
     if(s1.t<s2.t)
         return s1;
@@ -43,9 +48,11 @@ Surface scene(in vec3 p) {
     vec3 t = (p+iTime)*6.;
     float d = (cos(t.x)*cos(t.y)*cos(t.z))/5.0;
 
+    Surface planeSurface = Surface(sdPlane(p, vec3(0.0,1.0,0.0), 1.0), vec3(1.0, 0.0, 0.0));
+
     Surface rondSurface = Surface(sdSphere(p, 0.5), vec3(1.0, 0.0, 0.0));
 
-    final = rondSurface;
+    final = add(rondSurface, planeSurface);
 
     return final;
 }
@@ -63,7 +70,7 @@ Surface march(in Ray r) {
         t = t+s.t;
     }
 
-    return Surface(DIST_MAX,vec3(0));
+    return Surface(DIST_MAX,vec3(0.0, 0.0, 0.0));
 }
 
 vec3 normalAt(in Surface s,in Ray r) {
@@ -152,13 +159,14 @@ vec3 texColor(in vec3 p,in vec3 c) {
     return vec3(d,0.,1.-d);
 }
 
+// Change this so wecan dissotiate texture and forms
 vec3 shade(in Surface s,in Ray r) {
-    vec3 n = normalAt(s,r);
+    vec3 n = normalAt(s,r); // change this to pass scene
     vec3 l = normalize(vec3(1.,1.,-1.));
     vec3 v = -r.d;
     vec3 e = reflect(-l,n);
     
-    vec3 Kd = texColor(r.o+s.t*r.d,s.c);
+    vec3 Kd = texColor(r.o+s.t*r.d,s.c); // Change this to pass texture
     vec3 Ks = vec3(1.);
     vec3 Ka = vec3(0.);
     float sh = 50.;
@@ -176,6 +184,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     Ray r = camRay(uv);
     Surface s = march(r);
+    s = march(r);
     vec3 c = vec3(0.5);
     
     if(s.t<DIST_MAX) {

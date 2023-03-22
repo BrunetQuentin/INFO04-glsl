@@ -1,4 +1,4 @@
-- Plusieurs primitives (Rond, carré, etc...)
-- Combinaisons de primitives (U, I, S...)
-- Anti-aliasing
-- Mouvement (rotations, translations, scaling)
+Fonctions de distance 2D/3D | Union, intersection, différence, symétrie, répétition, déformation, etc.
+Lancer de rayon (marching) | Rayons de camera / animé, multiplicité de rayons, ombres, réflexions, refractions, etc.
+shading (modèle de phong) | Diffuse, spéculaire, réflexion, refraction, couleur, etc.
+Textures (perlin noise) | Perlin / fractale, variations math, etc.
