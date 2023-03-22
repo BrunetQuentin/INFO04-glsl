@@ -2,3 +2,17 @@ Fonctions de distance 2D/3D | Union, intersection, différence, symétrie, rép
 Lancer de rayon (marching) | Rayons de camera / animé, multiplicité de rayons, ombres, réflexions, refractions, etc.
 shading (modèle de phong) | Diffuse, spéculaire, réflexion, refraction, couleur, etc.
 Textures (perlin noise) | Perlin / fractale, variations math, etc.
+
+- features
+- technique                 50/60%
+- originalité
+
+- demo
+- pitch                     20/30%
+- pedagogie / storytelling
+
+- description scene / features
+- controles / parametres    reste
+- screenshot
+
+Jeudi 6 Avril

@@ -22,9 +22,17 @@ struct Ray {
     vec3 d; // direction
 };
 
+struct Specular {
+    float intensity;
+    float size;
+    float sharpness;
+};
+
 struct Surface {
     float t; // surface distance
     vec3 c; // surface color
+    Specular spec; // specular
+    float diff; // diffuse
 };
 
 float sdSphere( vec3 p, float s ) {
@@ -42,15 +50,55 @@ Surface add(in Surface s1, in Surface s2){
     return s2;
 }
 
+
+float hash13(vec3 p) {
+    return fract(sin(dot(p,vec3(12.9898,78.233,45.5432)))*43758.5453123);
+}
+
+float vnoise(in vec3 x) {
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+    f = f*f*(3.0-2.0*f);
+
+    return mix(
+                mix(mix(hash13(p+vec3(0.,0.,0.)),hash13(p+vec3(1.,0.,0.)),f.x),
+                      mix(hash13(p+vec3(0.,1.,0.)),hash13(p+vec3(1.,1.,0.)),f.x),f.y),
+                mix(mix(hash13(p+vec3(0.,0.,1.)),hash13(p+vec3(1.,0.,1.)),f.x),
+                      mix(hash13(p+vec3(0.,1.,1.)),hash13(p+vec3(1.,1.,1.)),f.x),f.y),f.z);
+}
+
+float fnoise(in vec3 p,in float amplitude,in float frequency,in float persistence, in int nboctaves) {
+    float a = amplitude;
+    float f = frequency;
+    float n = 0.0;
+
+    for(int i=0;i<nboctaves;++i) {
+        n = n+a*vnoise(p*f);
+        f = f*2.;
+        a = a*persistence;
+    }
+    
+    return n;
+}
+
+float noiseTexture(in vec3 p) {
+
+    vec3 t = (p+iTime)*4.;
+
+    return fnoise(t,0.5,1.0,0.5,4);
+}
+
 Surface scene(in vec3 p) {
     Surface final;
 
     vec3 t = (p+iTime)*6.;
     float d = (cos(t.x)*cos(t.y)*cos(t.z))/5.0;
 
-    Surface planeSurface = Surface(sdPlane(p, vec3(0.0,1.0,0.0), 1.0), vec3(1.0, 0.0, 0.0));
+    float plane = sdPlane(p, vec3(0.0,1.0,0.0), 1.0);
+    plane = plane + 1.0;
+    Surface planeSurface = Surface(sdPlane(p, vec3(0.0,1.0,0.0), 1.0), vec3(1.0, 0.0, 0.0), Specular(0.0,0.0,0.0), 0.0);
 
-    Surface rondSurface = Surface(sdSphere(p, 0.5), vec3(1.0, 0.0, 0.0));
+    Surface rondSurface = Surface(sdSphere(p, 0.5), vec3(noiseTexture(p)), Specular(1.0,0.0,0.0), 1.0);
 
     final = add(rondSurface, planeSurface);
 
@@ -64,13 +112,14 @@ Surface march(in Ray r) {
         Surface s = scene(r.o+t*r.d);
 
         if(s.t<RAY_MARCH_PRECI) {
-            return Surface(t+s.t,s.c);
+            s.t = s.t + t;
+            return s;
         }
 
         t = t+s.t;
     }
 
-    return Surface(DIST_MAX,vec3(0.0, 0.0, 0.0));
+    return Surface(DIST_MAX,vec3(0.0, 0.0, 0.0), Specular(0.0,0.0,0.0), 0.0);
 }
 
 vec3 normalAt(in Surface s,in Ray r) {
@@ -121,60 +170,22 @@ Ray camRay(in vec2 p) {
     return Ray(ro,rd);
 }
 
-float hash13(vec3 p) {
-    return fract(sin(dot(p,vec3(12.9898,78.233,45.5432)))*43758.5453123);
-}
-
-float vnoise(in vec3 x) {
-    vec3 p = floor(x);
-    vec3 f = fract(x);
-    f = f*f*(3.0-2.0*f);
-
-    return mix(
-                mix(mix(hash13(p+vec3(0.,0.,0.)),hash13(p+vec3(1.,0.,0.)),f.x),
-                      mix(hash13(p+vec3(0.,1.,0.)),hash13(p+vec3(1.,1.,0.)),f.x),f.y),
-                mix(mix(hash13(p+vec3(0.,0.,1.)),hash13(p+vec3(1.,0.,1.)),f.x),
-                      mix(hash13(p+vec3(0.,1.,1.)),hash13(p+vec3(1.,1.,1.)),f.x),f.y),f.z);
-}
-
-float fnoise(in vec3 p,in float amplitude,in float frequency,in float persistence, in int nboctaves) {
-    float a = amplitude;
-    float f = frequency;
-    float n = 0.0;
-
-    for(int i=0;i<nboctaves;++i) {
-        n = n+a*vnoise(p*f);
-        f = f*2.;
-        a = a*persistence;
-    }
-    
-    return n;
-}
-
-vec3 texColor(in vec3 p,in vec3 c) {
-    vec3 t = (p+iTime)*4.;
-    float d = fnoise(t,1.,1.,0.9,3);
-
-    d = d;
-    return vec3(d,0.,1.-d);
-}
-
-// Change this so wecan dissotiate texture and forms
 vec3 shade(in Surface s,in Ray r) {
-    vec3 n = normalAt(s,r); // change this to pass scene
+    vec3 n = normalAt(s,r);
     vec3 l = normalize(vec3(1.,1.,-1.));
     vec3 v = -r.d;
     vec3 e = reflect(-l,n);
     
-    vec3 Kd = texColor(r.o+s.t*r.d,s.c); // Change this to pass texture
     vec3 Ks = vec3(1.);
     vec3 Ka = vec3(0.);
     float sh = 50.;
     
-    float diff = max(dot(n,l),0.);
-    float spec = pow(max(dot(e,v),0.),sh);
+    float diff = max(dot(n,l),0.) ;
+    float spec = pow(max(dot(e,v),0.),sh) * s.spec.intensity;
+
+    vec3 color = (Ka + diff);
     
-    return Ka + Kd*diff + Ks*spec;
+    return color * s.c + Ks*spec;
 }
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
