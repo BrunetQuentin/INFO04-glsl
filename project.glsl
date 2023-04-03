@@ -5,7 +5,7 @@
 #define DIST_MIN 1.
 
 // maximum distance to objects
-#define DIST_MAX 50.0
+#define DIST_MAX 2000.0
 
 // max number of steps for the ray-marching
 #define RAY_MARCH_STEPS 100
@@ -51,56 +51,101 @@ Surface add(in Surface s1, in Surface s2){
 }
 
 
-float hash13(vec3 p) {
-    return fract(sin(dot(p,vec3(12.9898,78.233,45.5432)))*43758.5453123);
+// function random
+vec2 random (vec2 st) {
+    st = vec2(dot(st,vec2(127.1,311.7)),
+              dot(st,vec2(269.5,183.3)));
+    return -1.0 + 2.0*fract(sin(st)*43758.5453123);
 }
 
-float vnoise(in vec3 x) {
-    vec3 p = floor(x);
-    vec3 f = fract(x);
-    f = f*f*(3.0-2.0*f);
-
-    return mix(
-                mix(mix(hash13(p+vec3(0.,0.,0.)),hash13(p+vec3(1.,0.,0.)),f.x),
-                      mix(hash13(p+vec3(0.,1.,0.)),hash13(p+vec3(1.,1.,0.)),f.x),f.y),
-                mix(mix(hash13(p+vec3(0.,0.,1.)),hash13(p+vec3(1.,0.,1.)),f.x),
-                      mix(hash13(p+vec3(0.,1.,1.)),hash13(p+vec3(1.,1.,1.)),f.x),f.y),f.z);
+// function of a noise function
+float noiseFunction(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f*f*(3.0-2.0*f);
+    return mix(mix(dot(random(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0)),
+                   dot(random(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
+               mix(dot(random(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
+                   dot(random(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x), u.y);
 }
 
-float fnoise(in vec3 p,in float amplitude,in float frequency,in float persistence, in int nboctaves) {
-    float a = amplitude;
-    float f = frequency;
-    float n = 0.0;
-
-    for(int i=0;i<nboctaves;++i) {
-        n = n+a*vnoise(p*f);
-        f = f*2.;
-        a = a*persistence;
+// function that generate perlin noise  in 2D
+float perlinNoise(vec2 p, float frequency, float amplitude, int octaves, float lacunarity, float persistence) {
+    float total = 0.0;
+    for (int i = 0; i < octaves; i++) {
+        total += noiseFunction(p * frequency) * amplitude;
+        frequency *= lacunarity;
+        amplitude *= persistence;
     }
-    
-    return n;
+    return total;
 }
 
-float noiseTexture(in vec3 p) {
+float rand(vec2 n) { 
+	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+}
+float noise(vec2 p){
+	vec2 ip = floor(p);
+	vec2 u = fract(p);
+	u = u*u*(3.0-2.0*u);
+	
+	float res = mix(
+		mix(rand(ip),rand(ip+vec2(1.0,0.0)),u.x),
+		mix(rand(ip+vec2(0.0,1.0)),rand(ip+vec2(1.0,1.0)),u.x),u.y);
+	return res*res;
+}
+float fbm2(vec2 p) {
+    float r = 0.0;
+    float amp = 1.0;
+    float freq = 1.0;
+    for(int i = 0; i < 5; i++) {
+        r += amp * noise(freq*p);
+        amp *= 0.5; 
+        freq *= 2.0;
+    }
+    return r;
+}
 
-    vec3 t = (p+iTime)*4.;
+//https://www.shadertoy.com/view/MsBBWK
+vec3 marble(float u, float v) {
+    vec2 p = vec2(u, v);
+    vec2 q = vec2(0);
+    vec2 r = vec2(0);
+    q.x = fbm2(p + vec2(1, 1));
+    q.y = fbm2(p + vec2(2, 2));
+    r.x = fbm2(p + 2.0*q + vec2(1, 1));
+    r.y = fbm2(p + 2.0*q + vec2(2, 2));
+    return fbm2(p + 4.0*r) * vec3(0, q.x + r.x, q.y + r.y);
+}
 
-    return fnoise(t,0.5,1.0,0.5,4);
+float sdMountain(in vec3 p) { 
+
+    float plane = sdSphere(p+vec3(0.0,2000.0,0.0), 2000.0);
+    float mountain = perlinNoise(vec2(p.x, p.z + iTime * (-0.5)), 0.2, 4.0, 5, 2.0, 0.5);
+    // multiply by a factor to make the mountain at the same level as the plane when approaching on the x axis
+    mountain = mountain * smoothstep(0.5, 3.0, abs(p.x)) * - 1.0;
+
+    plane = plane + mountain;
+    return plane;
+}
+
+Surface sdPlanet(in vec3 p) {
+
+    vec3 marbleNoise = marble((p.x+(iTime * 0.2))/50.0, p.y/50.0);
+
+    Surface planet = Surface(sdSphere(p+vec3(0.0, 30.0, 1000.0), 100.0), marbleNoise, Specular(0.2,0.1,1.0), 5.0);
+    return planet;
 }
 
 Surface scene(in vec3 p) {
     Surface final;
 
-    vec3 t = (p+iTime)*6.;
-    float d = (cos(t.x)*cos(t.y)*cos(t.z))/5.0;
+    //float mountain = sdMountain(p);
+    //Surface planeSurface = Surface(mountain, vec3(0.5, 0.0, 0.0), Specular(0.3,0.01,1.0), 0.2);
 
-    float plane = sdPlane(p, vec3(0.0,1.0,0.0), 1.0);
-    plane = plane + 1.0;
-    Surface planeSurface = Surface(sdPlane(p, vec3(0.0,1.0,0.0), 1.0), vec3(1.0, 0.0, 0.0), Specular(0.0,0.0,0.0), 0.0);
-
-    Surface rondSurface = Surface(sdSphere(p, 0.5), vec3(noiseTexture(p)), Specular(1.0,0.0,0.0), 1.0);
-
-    final = add(rondSurface, planeSurface);
+    Surface planet = sdPlanet(p);
+ 
+    //final = add(planet, planeSurface);
+    final = planet;
 
     return final;
 }
@@ -141,7 +186,7 @@ Ray camRay(in vec2 p) {
     // camera position
     float DP = 10.;
     float d = DP/2.;
-    vec3 ro = vec3(d*cos(6.0*m.x),DP/5.0,d*sin(6.0*m.x) );
+    vec3 ro = vec3(d*cos(6.0*m.x),DP/5.0 - 1.6,d*sin(6.0*m.x) );
 
     //vec3 ro = vec3(0.,0.,-7.);
 
@@ -172,20 +217,18 @@ Ray camRay(in vec2 p) {
 
 vec3 shade(in Surface s,in Ray r) {
     vec3 n = normalAt(s,r);
-    vec3 l = normalize(vec3(1.,1.,-1.));
+    vec3 l = normalize(vec3(1.,1.,-1));
     vec3 v = -r.d;
     vec3 e = reflect(-l,n);
     
-    vec3 Ks = vec3(1.);
-    vec3 Ka = vec3(0.);
-    float sh = 50.;
+    vec3 Ka = vec3(0.0);
     
-    float diff = max(dot(n,l),0.) ;
-    float spec = pow(max(dot(e,v),0.),sh) * s.spec.intensity;
+    float diff = min(max(dot(n,l + s.diff),0.), 1.0);
+    float spec = pow(max(dot(e,v),0.),s.spec.size * 50.) * s.spec.intensity;
 
     vec3 color = (Ka + diff);
     
-    return color * s.c + Ks*spec;
+    return color * s.c + s.spec.sharpness * spec;
 }
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
@@ -195,7 +238,6 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     Ray r = camRay(uv);
     Surface s = march(r);
-    s = march(r);
     vec3 c = vec3(0.5);
     
     if(s.t<DIST_MAX) {
