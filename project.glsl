@@ -130,9 +130,9 @@ float sdMountain(in vec3 p) {
 
 Surface sdPlanet(in vec3 p) {
 
-    vec3 marbleNoise = marble((p.x+(iTime * 0.2))/50.0, p.y/50.0);
+    vec3 marbleNoise = marble((p.x+(iTime))/50.0, p.y/50.0);
 
-    Surface planet = Surface(sdSphere(p+vec3(0.0, 30.0, 1000.0), 100.0), marbleNoise, Specular(0.2,0.1,1.0), 5.0);
+    Surface planet = Surface(sdSphere(p+vec3(0.0, 30.0, 1000.0), 100.0), marbleNoise, Specular(marbleNoise.b,0.1,0.5), 5.0); // normalise marblenoise.b
     return planet;
 }
 
@@ -231,6 +231,11 @@ vec3 shade(in Surface s,in Ray r) {
     return color * s.c + s.spec.sharpness * spec;
 }
 
+vec3 space(vec2 v){
+    float noise = noiseFunction(v);
+    return vec3(noise);
+}
+
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     vec2 uv = (fragCoord / R.xy)*2.-1.;
@@ -238,7 +243,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     Ray r = camRay(uv);
     Surface s = march(r);
-    vec3 c = vec3(0.5);
+    vec3 c = space(fragCoord);
     
     if(s.t<DIST_MAX) {
         c = shade(s,r);
