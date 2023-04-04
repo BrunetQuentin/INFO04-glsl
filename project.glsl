@@ -139,13 +139,12 @@ Surface sdPlanet(in vec3 p) {
 Surface scene(in vec3 p) {
     Surface final;
 
-    //float mountain = sdMountain(p);
-    //Surface planeSurface = Surface(mountain, vec3(0.5, 0.0, 0.0), Specular(0.3,0.01,1.0), 0.2);
+    float mountain = sdMountain(p);
+    Surface planeSurface = Surface(mountain, vec3(0.0, 0.0, 0.0), Specular(0.3,0.01,1.0), 0.2);
 
     Surface planet = sdPlanet(p);
  
-    //final = add(planet, planeSurface);
-    final = planet;
+    final = add(planet, planeSurface);
 
     return final;
 }
@@ -231,10 +230,38 @@ vec3 shade(in Surface s,in Ray r) {
     return color * s.c + s.spec.sharpness * spec;
 }
 
-vec3 space(vec2 v){
-    float noise = noiseFunction(v);
-    return vec3(noise);
+//https://www.shadertoy.com/view/sddSzX
+float speed = 0.3;
+
+float n11(float p) {
+	return fract(sin(p*154.101)*313.019);
 }
+
+float n21(vec2 p) {
+	return sin(dot(p, vec2(7., 157.)));
+}
+
+
+float star(vec3 p) {
+	float z = 1.;
+	vec2 gv = fract(p.xy*z) - 0.5;
+	vec2 id = floor(p.xy*z);
+	gv.x += sin(n21(id)*354.23) * 0.3;
+	gv.y += sin(n11(n21(id))*914.19) * 0.3;
+	float r = n11(n21(id));
+	return 0.1*n11(r)*abs(sin(p.z+r*133.12))*0.4/length(gv)*0.1;
+}
+
+float stars(in vec3 p) {
+	float z = 1., m = 0.;
+	for(int i=1; i<=6;i++){
+		vec3 t = vec3(0., 0., p.z + iTime * speed);
+		z *= 2.;
+		m += star(vec3(p.xy*z, 1.)+t);
+	}
+	return m;
+}
+//https://www.shadertoy.com/view/sddSzX
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
@@ -243,7 +270,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     Ray r = camRay(uv);
     Surface s = march(r);
-    vec3 c = space(fragCoord);
+
+    // make a projection of the xy plane with cos and sin
+    vec3 projection =  r.d * s.t + r.o;
+    vec3 c = vec3(stars(projection));
     
     if(s.t<DIST_MAX) {
         c = shade(s,r);
