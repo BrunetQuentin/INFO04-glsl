@@ -130,6 +130,18 @@ Surface sdMountain(in vec3 p, in bool calculateTexture) {
     return Surface(plane, vec3(0.6078, 0.3294, 0.1059), Specular(0.3,0.01,1.0), 0.2);
 }
 
+
+// https://inspirnathan.com/posts/54-shadertoy-tutorial-part-8/
+mat3 rotateZ(float theta) {
+    float c = cos(theta);
+    float s = sin(theta);
+    return mat3(
+        vec3(c, -s, 0),
+        vec3(s, c, 0),
+        vec3(0, 0, 1)
+    );
+}
+
 Surface sdPlanet(in vec3 p, in bool calculateTexture) {
 vec3 marbleNoise;
     if(calculateTexture){
@@ -138,8 +150,19 @@ vec3 marbleNoise;
         marbleNoise = vec3(0.0);
     }
 
-    Surface planet = Surface(sdSphere(p+vec3(0.0, 30.0, 1000.0), 100.0), marbleNoise, Specular(marbleNoise.b,0.1,0.5), 5.0); // normalise marblenoise.b
-    return planet;
+    vec3 planetPosition = vec3(0.0, 30.0, 1000.0);
+    Surface planet = Surface(sdSphere(p+planetPosition, 100.0), marbleNoise, Specular(marbleNoise.b,0.1,0.5), 5.0);
+
+    // make a sattelite for  the planet
+
+    // caclulate the sattelite position that rotate around "planetPosition" point
+    vec3 sattelitePosition = (p+planetPosition) * rotateZ(iTime) - vec3(130.0, 0, 0);
+
+    Surface sattelite = Surface(sdSphere(sattelitePosition, 20.0), vec3(0.5), Specular(0.0,0.0,0.0), 0.0);
+
+    Surface final = add(planet, sattelite);
+
+    return final;
 }
 
 Surface scene(in vec3 p, in bool calculateTexture) {
