@@ -11,7 +11,7 @@
 #define RAY_MARCH_STEPS 100
 
 // consider hit if we reach this distance
-#define RAY_MARCH_PRECI 0.0001
+#define RAY_MARCH_PRECI 0.001
 
 // for ray direction computation
 #define PI 3.14159265359
@@ -49,7 +49,6 @@ Surface add(in Surface s1, in Surface s2){
         return s1;
     return s2;
 }
-
 
 // function random
 vec2 random (vec2 st) {
@@ -117,34 +116,42 @@ vec3 marble(float u, float v) {
     return fbm2(p + 4.0*r) * vec3(0, q.x + r.x, q.y + r.y);
 }
 
-float sdMountain(in vec3 p) { 
+Surface sdMountain(in vec3 p, in bool calculateTexture) { 
 
-    float plane = sdSphere(p+vec3(0.0,2000.0,0.0), 2000.0);
-    float mountain = perlinNoise(vec2(p.x, p.z + iTime * (-0.5)), 0.2, 4.0, 5, 2.0, 0.5);
-    // multiply by a factor to make the mountain at the same level as the plane when approaching on the x axis
-    mountain = mountain * smoothstep(0.5, 3.0, abs(p.x)) * - 1.0;
+    float plane = sdSphere(p+vec3(0.0,2005.0,0.0), 2000.0);
 
-    plane = plane + mountain;
-    return plane;
+    if(plane < DIST_MAX){
+        float mountain = perlinNoise(vec2(p.x, p.z - (iTime * 0.5)), 0.2, 4.0, 5, 2.0, 0.5);
+        // multiply by a factor to make the mountain at the same level as the plane when approaching on the x axis
+        mountain = mountain * smoothstep(0.5, 3.0, abs(p.x)) * - 1.0;
+        plane = plane + mountain;
+    }
+    
+    return Surface(plane, vec3(0.6078, 0.3294, 0.1059), Specular(0.3,0.01,1.0), 0.2);
 }
 
-Surface sdPlanet(in vec3 p) {
-
-    vec3 marbleNoise = marble((p.x+(iTime))/50.0, p.y/50.0);
+Surface sdPlanet(in vec3 p, in bool calculateTexture) {
+vec3 marbleNoise;
+    if(calculateTexture){
+        marbleNoise = marble((p.x+(iTime))/50.0, p.y/50.0);
+    }else {
+        marbleNoise = vec3(0.0);
+    }
 
     Surface planet = Surface(sdSphere(p+vec3(0.0, 30.0, 1000.0), 100.0), marbleNoise, Specular(marbleNoise.b,0.1,0.5), 5.0); // normalise marblenoise.b
     return planet;
 }
 
-Surface scene(in vec3 p) {
+Surface scene(in vec3 p, in bool calculateTexture) {
     Surface final;
 
-    float mountain = sdMountain(p);
-    Surface planeSurface = Surface(mountain, vec3(0.0, 0.0, 0.0), Specular(0.3,0.01,1.0), 0.2);
+    Surface planeSurface = sdMountain(p, calculateTexture);
 
-    Surface planet = sdPlanet(p);
+    Surface planet = sdPlanet(p, calculateTexture);
  
     final = add(planet, planeSurface);
+    // final = planeSurface;
+    // final = planet;
 
     return final;
 }
@@ -153,7 +160,7 @@ Surface march(in Ray r) {
     float t = DIST_MIN;
 
     for(int i=0;i<RAY_MARCH_STEPS,t<=DIST_MAX;++i) {
-        Surface s = scene(r.o+t*r.d);
+        Surface s = scene(r.o+t*r.d, true);
 
         if(s.t<RAY_MARCH_PRECI) {
             s.t = s.t + t;
@@ -169,9 +176,9 @@ Surface march(in Ray r) {
 vec3 normalAt(in Surface s,in Ray r) {
     const float e = 0.01;
     vec3 p = r.o+s.t*r.d;
-    float nx = scene(vec3(p.x+e,p.y,p.z)).t-scene(vec3(p.x-e,p.y,p.z)).t;
-    float ny = scene(vec3(p.x,p.y+e,p.z)).t-scene(vec3(p.x,p.y-e,p.z)).t;
-    float nz = scene(vec3(p.x,p.y,p.z+e)).t-scene(vec3(p.x,p.y,p.z-e)).t;
+    float nx = scene(vec3(p.x+e,p.y,p.z), false).t-scene(vec3(p.x-e,p.y,p.z), false).t;
+    float ny = scene(vec3(p.x,p.y+e,p.z), false).t-scene(vec3(p.x,p.y-e,p.z), false).t;
+    float nz = scene(vec3(p.x,p.y,p.z+e), false).t-scene(vec3(p.x,p.y,p.z-e), false).t;
 
     return normalize(vec3(nx,ny,nz));
 }
@@ -231,8 +238,6 @@ vec3 shade(in Surface s,in Ray r) {
 }
 
 //https://www.shadertoy.com/view/sddSzX
-float speed = 0.3;
-
 float n11(float p) {
 	return fract(sin(p*154.101)*313.019);
 }
@@ -255,7 +260,7 @@ float star(vec3 p) {
 float stars(in vec3 p) {
 	float z = 1., m = 0.;
 	for(int i=1; i<=6;i++){
-		vec3 t = vec3(0., 0., p.z + iTime * speed);
+		vec3 t = vec3(0., 0., p.z + iTime * 0.3);
 		z *= 2.;
 		m += star(vec3(p.xy*z, 1.)+t);
 	}
@@ -271,12 +276,13 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     Ray r = camRay(uv);
     Surface s = march(r);
 
-    // make a projection of the xy plane with cos and sin
-    vec3 projection =  r.d * s.t + r.o;
-    vec3 c = vec3(stars(projection));
+    vec3 c;
     
     if(s.t<DIST_MAX) {
         c = shade(s,r);
+    }else {
+        vec3 sphere =  r.d;
+        c = vec3(stars(sphere));
     }
     
     fragColor = vec4(c,1.0);
